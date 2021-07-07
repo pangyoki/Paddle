@@ -1385,6 +1385,7 @@ class OpTest(unittest.TestCase):
 
             diff_mat = np.abs(a - b) / abs_a
             max_diff = np.max(diff_mat)
+            print("yoki print grad name: ", name, " nemeric: ", a, " analytic: ", b)
 
             def err_msg():
                 offset = np.argmax(diff_mat > max_relative_error)

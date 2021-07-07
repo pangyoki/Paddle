@@ -64,18 +64,31 @@ class LookupTableV2GradNPUKernel : public framework::OpKernel<T> {
     auto stream =
         ctx.template device_context<paddle::platform::NPUDeviceContext>()
             .stream();
+    
+    // int embedding_dim = table_grad_t->dims()[-1];
 
-    const auto &runner_zeros =
-        NpuOpRunner("ZerosLike", {*table_grad_t}, {*table_grad_t});
-    runner_zeros.Run(stream);
+    // if (embedding_dim % 32 == 0) {
+    if (false) {
+        int num_weights = table_grad_t->dims()[0];
+        const auto &runner =
+            NpuOpRunner("EmbeddingDenseGrad", {*output_grad_t, *ids_t},
+                        {*table_grad_t}, {{"num_weights", num_weights},
+                                        {"padding_idx", -1},
+                                        {"scale_grad_by_freq", false}});
+        runner.Run(stream);
+    } else {
+        const auto &runner_zeros =
+            NpuOpRunner("ZerosLike", {*table_grad_t}, {*table_grad_t});
+        runner_zeros.Run(stream);
 
-    // NOTE(zhiqiu): It seems in cann 20.1, the first input and output
-    // can be different tensor, but in cann 20.2+, it does inplace operation.
-    // Thus, the first input and output should be same tensor.
-    const auto &runner_scatter =
-        NpuOpRunner("ScatterAdd", {*table_grad_t, *ids_t, *output_grad_t},
-                    {*table_grad_t}, {{"use_locking", true}});
-    runner_scatter.Run(stream);
+        // NOTE(zhiqiu): It seems in cann 20.1, the first input and output
+        // can be different tensor, but in cann 20.2+, it does inplace operation.
+        // Thus, the first input and output should be same tensor.
+        const auto &runner_scatter =
+            NpuOpRunner("ScatterAdd", {*table_grad_t, *ids_t, *output_grad_t},
+                        {*table_grad_t}, {{"use_locking", true}});
+        runner_scatter.Run(stream);
+    }
   }
 };
 }  // namespace operators
@@ -94,3 +107,4 @@ REGISTER_OP_NPU_KERNEL(
     lookup_table_v2_grad, ops::LookupTableV2GradNPUKernel<float>,
     ops::LookupTableV2GradNPUKernel<int>,
     ops::LookupTableV2GradNPUKernel<paddle::platform::float16>);
+
